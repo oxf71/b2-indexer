@@ -4,14 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path"
 	"syscall"
 	"time"
 
-	"github.com/b2network/b2-indexer/internal/logic/rollup"
 	"github.com/b2network/b2-indexer/internal/types"
-
-	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/b2network/b2-indexer/internal/config"
 	"github.com/b2network/b2-indexer/internal/logic/bitcoin"
@@ -22,7 +18,6 @@ import (
 )
 
 func Start(ctx *Context, cmd *cobra.Command) (err error) {
-	home := ctx.Config.RootDir
 	bitcoinCfg := ctx.BitcoinConfig
 	if bitcoinCfg.EnableIndexer {
 		logger.Infow("bitcoin index service starting!!!")
@@ -76,181 +71,8 @@ func Start(ctx *Context, cmd *cobra.Command) (err error) {
 		case <-time.After(5 * time.Second): // assume server started successfully
 		}
 
-		// start l1->l2 bridge service
-		bridgeLogger := newLogger(ctx, "[bridge-deposit]")
-		bridge, err := bitcoin.NewBridge(bitcoinCfg.Bridge, path.Join(home, "config"), bridgeLogger, bitcoinParam)
-		if err != nil {
-			logger.Errorw("failed to create bitcoin bridge", "error", err.Error())
-			return err
-		}
-
-		bridgeService := bitcoin.NewBridgeDepositService(bridge, bidxer, db, bridgeLogger)
-		bridgeErrCh := make(chan error)
-		go func() {
-			if err := bridgeService.Start(); err != nil {
-				bridgeErrCh <- err
-			}
-		}()
-
-		select {
-		case err := <-bridgeErrCh:
-			return err
-		case <-time.After(5 * time.Second): // assume server started successfully
-		}
-
-		defer func() {
-			if err = bridgeService.Stop(); err != nil {
-				logger.Errorf("stop err:%v", err.Error())
-			}
-		}()
 	}
 
-	if bitcoinCfg.Eps.EnableEps {
-		epsLoggerOpt := logger.NewOptions()
-		epsLoggerOpt.Format = ctx.Config.LogFormat
-		epsLoggerOpt.Level = ctx.Config.LogLevel
-		epsLoggerOpt.EnableColor = true
-		epsLoggerOpt.Name = "[eps]"
-		epsLogger := logger.New(epsLoggerOpt)
-
-		db, err := GetDBContextFromCmd(cmd)
-		if err != nil {
-			logger.Errorw("failed to get db context", "error", err.Error())
-			return err
-		}
-
-		epsService, err := bitcoin.NewEpsService(bitcoinCfg.Bridge, bitcoinCfg.Eps, epsLogger, db)
-		if err != nil {
-			logger.Errorw("failed to new eps server", "error", err.Error())
-			return err
-		}
-		epsErrCh := make(chan error)
-		go func() {
-			if err := epsService.OnStart(); err != nil {
-				epsErrCh <- err
-			}
-		}()
-
-		select {
-		case err := <-epsErrCh:
-			return err
-		case <-time.After(5 * time.Second): // assume server started successfully
-		}
-	}
-
-	if bitcoinCfg.Bridge.EnableRollupListener {
-		logger.Infow("rollup indexer service starting...")
-		db, err := GetDBContextFromCmd(cmd)
-		if err != nil {
-			logger.Errorw("failed to get db context", "error", err.Error())
-			return err
-		}
-
-		btclient, err := rpcclient.New(&rpcclient.ConnConfig{
-			Host:         bitcoinCfg.RPCHost + ":" + bitcoinCfg.RPCPort,
-			User:         bitcoinCfg.RPCUser,
-			Pass:         bitcoinCfg.RPCPass,
-			HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-			DisableTLS:   true, // Bitcoin core does not provide TLS by default
-		}, nil)
-		if err != nil {
-			logger.Errorw("EVMListenerService failed to create bitcoin client", "error", err.Error())
-			return err
-		}
-		defer func() {
-			btclient.Shutdown()
-		}()
-
-		ethlient, err := ethclient.Dial(bitcoinCfg.Bridge.EthRPCURL)
-		if err != nil {
-			logger.Errorw("EVMListenerService failed to create eth client", "error", err.Error())
-			return err
-		}
-		defer func() {
-			ethlient.Close()
-		}()
-
-		rollupLogger := newLogger(ctx, "[rollup-service]")
-		if err != nil {
-			return err
-		}
-		rollupService := rollup.NewIndexerService(ethlient, bitcoinCfg, db, rollupLogger)
-
-		epsErrCh := make(chan error)
-		go func() {
-			if err := rollupService.OnStart(); err != nil {
-				epsErrCh <- err
-			}
-		}()
-
-		select {
-		case err := <-epsErrCh:
-			return err
-		case <-time.After(5 * time.Second): // assume server started successfully
-		}
-	}
-
-	if bitcoinCfg.Bridge.EnableWithdrawListener {
-		logger.Infow("withdraw service starting...")
-		db, err := GetDBContextFromCmd(cmd)
-		if err != nil {
-			logger.Errorw("failed to get db context", "error", err.Error())
-			return err
-		}
-
-		auditDB, err := GetAuditDBContextFromCmd(cmd)
-		if err != nil {
-			logger.Errorw("failed to get audit db context", "error", err.Error())
-			return err
-		}
-
-		btclient, err := rpcclient.New(&rpcclient.ConnConfig{
-			Host:         bitcoinCfg.RPCHost + ":" + bitcoinCfg.RPCPort,
-			User:         bitcoinCfg.RPCUser,
-			Pass:         bitcoinCfg.RPCPass,
-			HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-			DisableTLS:   true, // Bitcoin core does not provide TLS by default
-		}, nil)
-		if err != nil {
-			logger.Errorw("EVMListenerService failed to create bitcoin client", "error", err.Error())
-			return err
-		}
-		defer func() {
-			btclient.Shutdown()
-		}()
-
-		ethlient, err := ethclient.Dial(bitcoinCfg.Bridge.EthRPCURL)
-		if err != nil {
-			logger.Errorw("EVMListenerService failed to create eth client", "error", err.Error())
-			return err
-		}
-		defer func() {
-			ethlient.Close()
-		}()
-
-		bridgeLogger := newLogger(ctx, "[bridge-withdraw]")
-		if err != nil {
-			return err
-		}
-		withdrawService := bitcoin.NewBridgeWithdrawService(btclient, ethlient, bitcoinCfg, db, auditDB, bridgeLogger)
-		defer func() {
-			if err = withdrawService.Stop(); err != nil {
-				logger.Errorf("stop withdrawService err:%v", err.Error())
-			}
-		}()
-		epsErrCh := make(chan error)
-		go func() {
-			if err := withdrawService.Start(); err != nil {
-				epsErrCh <- err
-			}
-		}()
-
-		select {
-		case err := <-epsErrCh:
-			return err
-		case <-time.After(5 * time.Second): // assume server started successfully
-		}
-	}
 	// wait quit
 	code := WaitForQuitSignals()
 	logger.Infow("server stop!!!", "quit code", code)

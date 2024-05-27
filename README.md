@@ -1,4 +1,4 @@
-## b2-indexer
+## b2-indexer-btc
 
 ## Usage
 
@@ -14,11 +14,6 @@ b2-indexer
 ./build/b2-indexer start
 ```
 
-b2-indexer-api
-
-```
-./build/b2-indexer http
-```
 
 ## Resources
 

@@ -59,8 +59,8 @@ func (bis *IndexerService) OnStart() error {
 		currentBlock   int64 // index current block number
 		currentTxIndex int64 // index current block tx index
 	)
-	if !bis.db.Migrator().HasTable(&model.Deposit{}) {
-		err = bis.db.AutoMigrate(&model.Deposit{})
+	if !bis.db.Migrator().HasTable(&model.BtcTransaction{}) {
+		err = bis.db.AutoMigrate(&model.BtcTransaction{})
 		if err != nil {
 			bis.log.Errorw("bitcoin indexer create table", "error", err.Error())
 			return err
@@ -69,22 +69,6 @@ func (bis *IndexerService) OnStart() error {
 
 	if !bis.db.Migrator().HasTable(&model.BtcIndex{}) {
 		err = bis.db.AutoMigrate(&model.BtcIndex{})
-		if err != nil {
-			bis.log.Errorw("bitcoin indexer create table", "error", err.Error())
-			return err
-		}
-	}
-
-	if !bis.db.Migrator().HasTable(&model.Sinohope{}) {
-		err = bis.db.AutoMigrate(&model.Sinohope{})
-		if err != nil {
-			bis.log.Errorw("bitcoin indexer create table", "error", err.Error())
-			return err
-		}
-	}
-
-	if !bis.db.Migrator().HasTable(&model.RollupDeposit{}) {
-		err = bis.db.AutoMigrate(&model.RollupDeposit{})
 		if err != nil {
 			bis.log.Errorw("bitcoin indexer create table", "error", err.Error())
 			return err
@@ -141,7 +125,7 @@ func (bis *IndexerService) OnStart() error {
 
 		for i := currentBlock; i <= latestBlock; i++ {
 			bis.log.Infow("start parse block", "currentBlock", i, "currentTxIndex", currentTxIndex)
-			txResults, blockHeader, err := bis.txIdxr.ParseBlock(i, currentTxIndex)
+			txResults, _, err := bis.txIdxr.ParseBlock(i, currentTxIndex)
 			if err != nil {
 				if errors.Is(err, ErrTargetConfirmations) {
 					bis.log.Warnw("parse block confirmations", "error", err.Error(), "currentBlock", i, "currentTxIndex", currentTxIndex)
@@ -159,7 +143,7 @@ func (bis *IndexerService) OnStart() error {
 				break
 			}
 			if len(txResults) > 0 {
-				currentBlock, currentTxIndex, err = bis.HandleResults(txResults, btcIndex, blockHeader.Timestamp, i)
+				currentBlock, currentTxIndex, err = bis.HandleResults(txResults, btcIndex, i)
 				if err != nil {
 					bis.log.Errorw("failed to handle results", "error", err,
 						"currentBlock", currentBlock, "currentTxIndex", currentTxIndex, "latestBlock", latestBlock)
@@ -205,8 +189,6 @@ func (bis *IndexerService) OnStart() error {
 func (bis *IndexerService) SaveParsedResult(
 	parseResult *types.BitcoinTxParseResult,
 	btcBlockNumber int64,
-	b2TxStatus int,
-	btcBlockTime time.Time,
 	btcIndex model.BtcIndex,
 ) error {
 	// write db
@@ -257,17 +239,17 @@ func (bis *IndexerService) SaveParsedResult(
 			return err
 		}
 		// if existed, update deposit record
-		var deposit model.Deposit
+		var deposit model.BtcTransaction
 		err = tx.
 			Set("gorm:query_option", "FOR UPDATE").
 			First(&deposit,
-				fmt.Sprintf("%s = ?", model.Deposit{}.Column().BtcTxHash),
+				fmt.Sprintf("%s = ?", model.BtcTransaction{}.Column().BtcTxHash),
 				parseResult.TxID).Error
 		if err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
-			deposit := model.Deposit{
+			deposit := model.BtcTransaction{
 				BtcBlockNumber: btcBlockNumber,
 				BtcTxIndex:     parseResult.Index,
 				BtcTxHash:      parseResult.TxID,
@@ -276,11 +258,6 @@ func (bis *IndexerService) SaveParsedResult(
 				BtcTo:          parseResult.To,
 				BtcValue:       parseResult.Value,
 				BtcFroms:       string(froms),
-				B2TxStatus:     b2TxStatus,
-				BtcBlockTime:   btcBlockTime,
-				B2TxRetry:      0,
-				ListenerStatus: model.ListenerStatusSuccess,
-				CallbackStatus: model.CallbackStatusPending,
 			}
 			if existsEvmAddressData {
 				deposit.BtcFromEvmAddress = parsedEvmAddress
@@ -288,28 +265,6 @@ func (bis *IndexerService) SaveParsedResult(
 			err = tx.Create(&deposit).Error
 			if err != nil {
 				bis.log.Errorw("failed to save tx parsed result", "error", err)
-				return err
-			}
-		} else if deposit.CallbackStatus == model.CallbackStatusSuccess &&
-			deposit.ListenerStatus == model.ListenerStatusPending {
-			if deposit.BtcValue != parseResult.Value || deposit.BtcFrom != parseResult.From[0].Address {
-				return fmt.Errorf("invalid parameter")
-			}
-			// if existed, update deposit record
-			updateFields := map[string]interface{}{
-				model.Deposit{}.Column().BtcBlockNumber: btcBlockNumber,
-				model.Deposit{}.Column().BtcTxIndex:     parseResult.Index,
-				model.Deposit{}.Column().BtcFroms:       string(froms),
-				model.Deposit{}.Column().BtcTos:         string(tos),
-				model.Deposit{}.Column().BtcBlockTime:   btcBlockTime,
-				model.Deposit{}.Column().ListenerStatus: model.ListenerStatusSuccess,
-			}
-			if existsEvmAddressData {
-				updateFields[model.Deposit{}.Column().BtcFromEvmAddress] = parsedEvmAddress
-			}
-			err = tx.Model(&model.Deposit{}).Where("id = ?", deposit.ID).Updates(updateFields).Error
-			if err != nil {
-				bis.log.Errorw("failed to update tx parsed result", "error", err)
 				return err
 			}
 		}
@@ -326,7 +281,6 @@ func (bis *IndexerService) SaveParsedResult(
 func (bis *IndexerService) HandleResults(
 	txResults []*types.BitcoinTxParseResult,
 	btcIndex model.BtcIndex,
-	btcBlockTime time.Time,
 	currentBlock int64,
 ) (int64, int64, error) {
 	for _, v := range txResults {
@@ -342,8 +296,6 @@ func (bis *IndexerService) HandleResults(
 		err := bis.SaveParsedResult(
 			v,
 			currentBlock,
-			model.DepositB2TxStatusPending,
-			btcBlockTime,
 			btcIndex,
 		)
 		if err != nil {

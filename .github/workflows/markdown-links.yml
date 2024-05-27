@@ -5,8 +5,7 @@ on:
       - '**.md'
   push:
     branches:
-      - main
-      - dev
+      - indexer-btc
     paths:
       - '**.md'
 

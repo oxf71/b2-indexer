@@ -8,9 +8,9 @@ import (
 	"github.com/b2network/b2-indexer/pkg/utils"
 )
 
-func TestValidateWithdrawAuditColumn(t *testing.T) {
-	var d model.WithdrawAudit
-	dc := model.WithdrawAudit{}.Column()
+func TestValidateDepositColumn(t *testing.T) {
+	var d model.BtcTransaction
+	dc := model.BtcTransaction{}.Column()
 
 	dFields := reflect.TypeOf(d)
 	dcValues := reflect.ValueOf(dc)
@@ -25,7 +25,7 @@ func TestValidateWithdrawAuditColumn(t *testing.T) {
 	for i := 0; i < dcValues.NumField(); i++ {
 		dcValue := dcValues.Field(i).String()
 		if !utils.StrInArray(dJSONTags, dcValue) {
-			t.Fatalf("WithdrawAuditColumn field %s not found in deposit %s", dcValue, dJSONTags)
+			t.Fatalf("depositColumn field %s not found in deposit %s", dcValue, dJSONTags)
 		}
 	}
 }
