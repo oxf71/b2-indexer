@@ -190,18 +190,17 @@ func (b *Indexer) parseTx(txResult *wire.MsgTx, index int) (*types.BitcoinTxPars
 				InValue:   vinTotalValue,
 				Fee:       fee,
 			}, nil
-		} else {
-			return &types.BitcoinTxParseResult{
-				TxID:      txResult.TxHash().String(),
-				TxType:    TxTypeTransfer,
-				Index:     int64(index),
-				Value:     intotalValue,
-				From:      fromAddress,
-				To:        tos[0].Address,
-				Tos:       tos,
-				Direction: "in",
-			}, nil
 		}
+		return &types.BitcoinTxParseResult{
+			TxID:      txResult.TxHash().String(),
+			TxType:    TxTypeTransfer,
+			Index:     int64(index),
+			Value:     intotalValue,
+			From:      fromAddress,
+			To:        tos[0].Address,
+			Tos:       tos,
+			Direction: "in",
+		}, nil
 	}
 	return nil, nil
 }
@@ -229,9 +228,8 @@ func (b *Indexer) vinIsListenAddress(txResult *wire.MsgTx) (bool, error) {
 		}
 		if vinPkAddress == b.listenAddress.EncodeAddress() {
 			return true, nil
-		} else {
-			return false, nil
 		}
+		return false, nil
 	}
 	return false, nil
 }
