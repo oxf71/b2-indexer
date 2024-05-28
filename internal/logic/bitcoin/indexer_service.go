@@ -32,8 +32,9 @@ type IndexerService struct {
 
 	txIdxr types.BITCOINTxIndexer
 
-	db  *gorm.DB
-	log log.Logger
+	db        *gorm.DB
+	log       log.Logger
+	initBlock int64
 }
 
 // NewIndexerService returns a new service instance.
@@ -41,8 +42,9 @@ func NewIndexerService(
 	txIdxr types.BITCOINTxIndexer,
 	db *gorm.DB,
 	logger log.Logger,
+	initBlock int64,
 ) *IndexerService {
-	is := &IndexerService{txIdxr: txIdxr, db: db, log: logger}
+	is := &IndexerService{txIdxr: txIdxr, db: db, log: logger, initBlock: initBlock}
 	is.BaseService = *service.NewBaseService(nil, ServiceName, is)
 	return is
 }
@@ -82,7 +84,7 @@ func (bis *IndexerService) OnStart() error {
 				Base: model.Base{
 					ID: 1,
 				},
-				BtcIndexBlock: latestBlock,
+				BtcIndexBlock: bis.initBlock,
 				BtcIndexTx:    0,
 			}
 			if err := bis.db.Create(&btcIndex).Error; err != nil {
@@ -204,8 +206,11 @@ func (bis *IndexerService) SaveParsedResult(
 		if len(parseResult.Tos) == 0 {
 			return fmt.Errorf("parse result to empty")
 		}
+		direction := model.DirectionIn
+		if parseResult.Direction == "out" {
+			direction = model.DirectionOut
+		}
 
-		bis.log.Errorw("parseResult:", "result", parseResult)
 		existsEvmAddressData := false // The evm address is processed only if it exists. Otherwise, aa is used
 		parsedEvmAddress := ""        // evm address
 		for _, v := range parseResult.Tos {
@@ -239,36 +244,27 @@ func (bis *IndexerService) SaveParsedResult(
 			return err
 		}
 		// if existed, update deposit record
-		var deposit model.BtcTransaction
-		err = tx.
-			Set("gorm:query_option", "FOR UPDATE").
-			First(&deposit,
-				fmt.Sprintf("%s = ?", model.BtcTransaction{}.Column().BtcTxHash),
-				parseResult.TxID).Error
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			deposit := model.BtcTransaction{
-				BtcBlockNumber: btcBlockNumber,
-				BtcTxIndex:     parseResult.Index,
-				BtcTxHash:      parseResult.TxID,
-				BtcFrom:        parseResult.From[0].Address,
-				BtcTos:         string(tos),
-				BtcTo:          parseResult.To,
-				BtcValue:       parseResult.Value,
-				BtcFroms:       string(froms),
-			}
-			if existsEvmAddressData {
-				deposit.BtcFromEvmAddress = parsedEvmAddress
-			}
-			err = tx.Create(&deposit).Error
-			if err != nil {
-				bis.log.Errorw("failed to save tx parsed result", "error", err)
-				return err
-			}
+		deposit := model.BtcTransaction{
+			BtcBlockNumber: btcBlockNumber,
+			BtcTxIndex:     parseResult.Index,
+			BtcTxHash:      parseResult.TxID,
+			BtcFrom:        parseResult.From[0].Address,
+			BtcTos:         string(tos),
+			BtcTo:          parseResult.To,
+			BtcValue:       parseResult.Value,
+			BtcFroms:       string(froms),
+			Direction:      direction,
+			BtcInValue:     parseResult.InValue,
+			BtcFee:         parseResult.Fee,
 		}
-
+		if existsEvmAddressData {
+			deposit.BtcFromEvmAddress = parsedEvmAddress
+		}
+		err = tx.Create(&deposit).Error
+		if err != nil {
+			bis.log.Errorw("failed to save tx parsed result", "error", err)
+			return err
+		}
 		if err := tx.Save(&btcIndex).Error; err != nil {
 			bis.log.Errorw("failed to save bitcoin tx index", "error", err)
 			return err
@@ -285,10 +281,10 @@ func (bis *IndexerService) HandleResults(
 ) (int64, int64, error) {
 	for _, v := range txResults {
 		// if from is listen address, skip
-		if bis.ToInFroms(v.From, v.To) {
-			bis.log.Infow("current transaction from is listen address", "currentBlock", currentBlock, "currentTxIndex", v.Index, "data", v)
-			continue
-		}
+		// if bis.ToInFroms(v.From, v.To) {
+		// 	bis.log.Infow("current transaction from is listen address", "currentBlock", currentBlock, "currentTxIndex", v.Index, "data", v)
+		// 	continue
+		// }
 
 		btcIndex.BtcIndexBlock = currentBlock
 		btcIndex.BtcIndexTx = v.Index

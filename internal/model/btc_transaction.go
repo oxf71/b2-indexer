@@ -18,6 +18,8 @@ type BtcTransaction struct {
 	BtcFromAAAddress  string `json:"btc_from_aa_address" gorm:"type:varchar(42);default:'';comment:from aa address"`
 	BtcFromEvmAddress string `json:"btc_from_evm_address" gorm:"type:varchar(42);default:'';comment:from evm address"`
 	BtcValue          int64  `json:"btc_value" gorm:"default:0;comment:bitcoin transfer value"`
+	BtcInValue        int64  `json:"btc_in_value" gorm:"default:0;comment:bitcoin transfer in value"`
+	BtcFee            int64  `json:"btc_fee" gorm:"default:0;comment:bitcoin transfer fee"`
 	Direction         int    `json:"direction" gorm:"type:SMALLINT;default:0;comment:direction"`
 }
 
@@ -33,6 +35,8 @@ type BtcTransactionColumns struct {
 	BtcFromAAAddress  string
 	BtcFromEvmAddress string
 	BtcValue          string
+	BtcInValue        string
+	BtcFee            string
 	Direction         string
 }
 
@@ -53,6 +57,8 @@ func (BtcTransaction) Column() BtcTransactionColumns {
 		BtcFromAAAddress:  "btc_from_aa_address",
 		BtcFromEvmAddress: "btc_from_evm_address",
 		BtcValue:          "btc_value",
+		BtcInValue:        "btc_in_value",
+		BtcFee:            "btc_fee",
 		Direction:         "direction",
 	}
 }

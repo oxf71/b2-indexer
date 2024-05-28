@@ -14,16 +14,17 @@
 
 ## Bitcoin configuration
 
-| Variable                                    | Type     | Description                                           | Compulsoriness | Default value | Example value                            |
-|---------------------------------------------|----------|-------------------------------------------------------|----------------|---------------|------------------------------------------|
-| BITCOIN_NETWORK_NAME                        | `string` | bitcoin network name                                  | Required       | testnet3      | `mainnet testnet3 regtest`               |
-| BITCOIN_RPC_HOST                            | `string` | bitcoin rpc host                                      | Required       |               | `127.0.0.1`                              |
-| BITCOIN_RPC_PORT                            | `string` | bitcoin rpc port                                      | Required       |               | `8332`                                   |
-| BITCOIN_RPC_USER                            | `string` | bitcoin rpc user                                      | Required       |               |                                          |
-| BITCOIN_RPC_PASS                            | `string` | bitcoin rpc password                                  | Required       |               |                                          |
-| BITCOIN_DISABLE_TLS                         | `bool`   | bitcoin disable tls                                   | Required       | `true`        |                                          |
-| BITCOIN_ENABLE_INDEXER                      | `bool`   | enable indexer service                                | Required       |               | `false true`                             |
-| BITCOIN_INDEXER_LISTEN_ADDRESS              | `string` | indexer service listen btc address                    | Required       |               |                                          |
+| Variable                                  | Type      | Description                        | Compulsoriness | Default value | Example value                            |
+|-------------------------------------------|-----------|------------------------------------|----------------|---------------|------------------------------------------|
+| BITCOIN_NETWORK_NAME                      | `string`  | bitcoin network name               | Required       | testnet3      | `mainnet testnet3 regtest`               |
+| BITCOIN_RPC_HOST                          | `string`  | bitcoin rpc host                   | Required       |               | `127.0.0.1`                              |
+| BITCOIN_RPC_PORT                          | `string`  | bitcoin rpc port                   | Required       |               | `8332`                                   |
+| BITCOIN_RPC_USER                          | `string`  | bitcoin rpc user                   | Required       |               |                                          |
+| BITCOIN_RPC_PASS                          | `string`  | bitcoin rpc password               | Required       |               |                                          |
+| BITCOIN_DISABLE_TLS                       | `bool`    | bitcoin disable tls                | Required       | `true`        |                                          |
+| BITCOIN_ENABLE_INDEXER                    | `bool`    | enable indexer service             | Required       |               | `false true`                             |
+| BITCOIN_INDEXER_LISTEN_ADDRESS            | `string`  | indexer service listen btc address | Required       |               |                                          |
+| BITCOIN_INDEXER_INIT_BLOCK                | `integer` | indexer service init block         | Required       |               |                                          |
 
 # Service requirement environment variable
 
@@ -44,5 +45,6 @@ BITCOIN_RPC_USER
 BITCOIN_RPC_PASS
 BITCOIN_ENABLE_INDEXER
 BITCOIN_INDEXER_LISTEN_ADDRESS
+BITCOIN_INDEXER_INIT_BLOCK
 
 ```
