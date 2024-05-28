@@ -6,10 +6,7 @@ import (
 
 	"github.com/b2network/b2-indexer/internal/server"
 	"github.com/b2network/b2-indexer/internal/types"
-	cryptoCmd "github.com/b2network/b2-indexer/pkg/crypto/cmd"
 	"github.com/b2network/b2-indexer/pkg/log"
-	sinohopeCmd "github.com/b2network/b2-indexer/pkg/sinohope/cmd"
-	gvsmCmd "github.com/b2network/b2-indexer/pkg/vsm/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -40,14 +37,6 @@ func rootCmd() *cobra.Command {
 
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.AddCommand(startCmd())
-	rootCmd.AddCommand(startHTTPServer())
-	rootCmd.AddCommand(sinohopeCmd.Sinohope())
-	rootCmd.AddCommand(gvsmCmd.Gvsm())
-	rootCmd.AddCommand(cryptoCmd.Crypto())
-	rootCmd.AddCommand(transferServer())
-	rootCmd.AddCommand(resetTransferCmd())
-	rootCmd.AddCommand(resetDepositIndexerCmd())
-	rootCmd.AddCommand(scanWithdrawTxByHash())
 	return rootCmd
 }
 
@@ -82,53 +71,4 @@ func GetServerContextFromCmd(cmd *cobra.Command) *server.Context {
 	}
 
 	return server.NewDefaultContext()
-}
-
-func startHTTPServer() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "http",
-		Short: "start http service",
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := cmd.Flags().GetString(FlagHome)
-			if err != nil {
-				return err
-			}
-			return server.HTTPConfigsPreRunHandler(cmd, home)
-		},
-		Run: func(cmd *cobra.Command, _ []string) {
-			db, err := server.GetDBContextFromCmd(cmd)
-			if err != nil {
-				cmd.Println(err)
-				return
-			}
-			err = server.Run(cmd.Context(), GetServerContextFromCmd(cmd), db)
-			if err != nil {
-				log.Error("start http service failed")
-			}
-		},
-	}
-	cmd.Flags().String(FlagHome, "", "The application home directory")
-	return cmd
-}
-
-func transferServer() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "transfer",
-		Short: "start transfer service",
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			home, err := cmd.Flags().GetString(FlagHome)
-			if err != nil {
-				return err
-			}
-			return server.TransferConfigsPreRunHandler(cmd, home)
-		},
-		Run: func(cmd *cobra.Command, _ []string) {
-			err := server.StartTransfer(GetServerContextFromCmd(cmd), cmd)
-			if err != nil {
-				log.Errorw("start transfer service failed", "error", err)
-			}
-		},
-	}
-	cmd.Flags().String(FlagHome, "", "The application home directory")
-	return cmd
 }

@@ -3,9 +3,7 @@ on:
     pull_request:
     push:
         branches:
-            - main
-            - dev
-            - release/**
+            - indexer-btc
 
 jobs:
     cleanup-runs:

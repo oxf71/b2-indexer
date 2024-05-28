@@ -55,17 +55,11 @@ type BitcoinConfig struct {
 	RPCPass string `mapstructure:"rpc-pass" env:"BITCOIN_RPC_PASS"`
 	// DisableTLS defines the bitcoin whether tls is required
 	DisableTLS bool `mapstructure:"disable-tls" env:"BITCOIN_DISABLE_TLS" envDefault:"true"`
-	// WalletName defines the bitcoin wallet name
-	WalletName string `mapstructure:"wallet-name" env:"BITCOIN_WALLET_NAME"`
 	// EnableIndexer defines whether to enable the indexer
 	EnableIndexer bool `mapstructure:"enable-indexer" env:"BITCOIN_ENABLE_INDEXER"`
 	// IndexerListenAddress defines the address to listen on
 	IndexerListenAddress string `mapstructure:"indexer-listen-address" env:"BITCOIN_INDEXER_LISTEN_ADDRESS"`
-	// IndexerListenTargetConfirmations defines the number of confirmations to listen on
-	IndexerListenTargetConfirmations uint64 `mapstructure:"indexer-listen-target-confirmations" env:"BITCOIN_INDEXER_LISTEN_TARGET_CONFIRMATIONS" envDefault:"1"`
-	// Bridge defines the bridge config
-	Bridge BridgeConfig `mapstructure:"bridge"`
-	Eps    EpsConfig    `mapstructure:"eps"`
+	IndexerInitBlock     int64  `mapstructure:"indexer-init-block" env:"BITCOIN_INDEXER_INIT_BLOCK"`
 }
 
 type BridgeConfig struct {

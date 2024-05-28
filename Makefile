@@ -4,7 +4,7 @@ PROJECT := b2-indexer
 DOCKER_IMAGE := $(NAMESPACE)/$(PROJECT)
 COMMIT_HASH := $(shell git rev-parse --short=7 HEAD)
 DATE=$(shell date +%Y%m%d-%H%M%S)
-DOCKER_TAG := ${DATE}-$(COMMIT_HASH)
+DOCKER_TAG := indexer-btc-${DATE}-$(COMMIT_HASH)
 MODULES := $(wildcard api/*)
 SYSTEM := $(shell uname -s)
 

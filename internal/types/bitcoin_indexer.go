@@ -10,8 +10,6 @@ type BITCOINTxIndexer interface {
 	ParseBlock(int64, int64) ([]*BitcoinTxParseResult, *wire.BlockHeader, error)
 	// LatestBlock get latest block height in the longest block chain.
 	LatestBlock() (int64, error)
-	// CheckConfirmations get tx detail info
-	CheckConfirmations(txHash string) error
 }
 
 type BitcoinTxParseResult struct {
@@ -28,7 +26,11 @@ type BitcoinTxParseResult struct {
 	// index is the index of the transaction in the block
 	Index int64
 	// tos tx all to info
-	Tos []BitcoinTo
+	Tos       []BitcoinTo
+	Direction string
+	InValue   int64
+	OutValue  int64
+	Fee       int64
 }
 
 const (
@@ -40,6 +42,7 @@ type BitcoinFrom struct {
 	Address    string
 	Type       int
 	EvmAddress string
+	Value      int64
 }
 
 const (
