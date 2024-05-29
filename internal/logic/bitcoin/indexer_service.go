@@ -23,7 +23,7 @@ const (
 	NewBlockWaitTimeout = 60 * time.Second
 
 	IndexTxTimeout    = 100 * time.Millisecond
-	IndexBlockTimeout = 5 * time.Second
+	IndexBlockTimeout = 1 * time.Second
 )
 
 // IndexerService indexes transactions for json-rpc service.
