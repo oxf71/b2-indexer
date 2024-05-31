@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,10 +12,14 @@ import (
 	pb "github.com/b2network/b2-indexer/api/protobuf"
 	"github.com/b2network/b2-indexer/api/protobuf/vo"
 	"github.com/b2network/b2-indexer/internal/app/exceptions"
+	"github.com/b2network/b2-indexer/internal/logic/rollup"
 	"github.com/b2network/b2-indexer/internal/model"
+	"github.com/b2network/b2-indexer/pkg/event"
 	"github.com/b2network/b2-indexer/pkg/log"
 	sinohopeType "github.com/b2network/b2-indexer/pkg/sinohope/types"
 	"github.com/b2network/b2-indexer/pkg/utils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"gorm.io/gorm"
 )
 
@@ -152,6 +157,86 @@ func (s *sinohopeServer) WithdrawalConfirm(ctx context.Context, req *vo.Withdraw
 		return ErrorWithdrawalConfirm(exceptions.RequestDetailAmount, "request detail amount parse fail", req.RequestId), nil
 	}
 	var withdraw model.Withdraw
+	err = db.
+		Where(
+			fmt.Sprintf("%s.%s = ?", model.Withdraw{}.TableName(), model.Withdraw{}.Column().RequestID),
+			requestDetail.APIRequestID,
+		).
+		First(&withdraw).Error
+	if err != nil {
+		logger.Errorw("failed find tx from db", "error", err)
+		if errors.Is(err, errRecordNotFound) {
+			return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmRecordNotFound, "record not found", req.RequestId), nil
+		}
+		return ErrorWithdrawalConfirm(exceptions.SystemError, "system error", req.RequestId), nil
+	}
+
+	b2TxHash := withdraw.B2TxHash
+	ethClient, err := ethclient.Dial(httpCfg.B2Rpc)
+	if err != nil {
+		logger.Errorw("failed to dial b2 rpc", "error", err)
+		return ErrorWithdrawalConfirm(exceptions.SystemError, "system error", req.RequestId), nil
+	}
+	defer func() {
+		ethClient.Close()
+	}()
+
+	receipt, err := ethClient.TransactionReceipt(context.Background(), common.HexToHash(b2TxHash))
+	if err != nil {
+		logger.Errorw("failed to call b2 rpc", "error", err)
+		return ErrorWithdrawalConfirm(exceptions.SystemError, "system error", req.RequestId), nil
+	}
+
+	existedLogData := false
+	for _, vlog := range receipt.Logs {
+		eventHash := common.BytesToHash(vlog.Topics[0].Bytes())
+		if eventHash == common.HexToHash(httpCfg.WithdrawEvent) {
+			caller := event.TopicToAddress(*vlog, 1).Hex()
+			withdrawUUID := hex.EncodeToString(vlog.Data[32*4 : 32*5])
+			originalAmount := rollup.DataToBigInt(*vlog, 1)
+			withdrawAmount := rollup.DataToBigInt(*vlog, 2)
+			destAddrStr := rollup.DataToString(*vlog, 0)
+			if vlog.TxIndex == withdraw.B2TxIndex && vlog.Index == withdraw.B2LogIndex {
+				logger.Infow("log",
+					"uuid", withdrawUUID,
+					"btc_value", originalAmount.Int64(),
+					"btc_real_value", withdrawAmount.Int64(),
+					"btc_to", destAddrStr,
+					"b2_tx_from", caller,
+				)
+				existedLogData = true
+				// check
+				if withdrawUUID != withdraw.UUID {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+				if originalAmount.Int64() != withdraw.BtcValue {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+				if withdrawAmount.Int64() != withdraw.BtcRealValue {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+				if destAddrStr != withdraw.BtcTo {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+				if caller != withdraw.B2TxFrom {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+				_requestId := fmt.Sprintf("%s-%d-%d", vlog.TxHash.String(), vlog.TxIndex, vlog.Index)
+				apiReqID := strings.Split(requestDetail.APIRequestID, "_")
+				if len(apiReqID) < 1 {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+				if apiReqID[0] != _requestId {
+					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
+				}
+			}
+		}
+	}
+	if !existedLogData {
+		logger.Errorw("not existed log data")
+		return ErrorWithdrawalConfirm(exceptions.SystemError, "system error", req.RequestId), nil
+	}
+
 	err = db.Transaction(func(tx *gorm.DB) error {
 		err = tx.
 			Set("gorm:query_option", "FOR UPDATE").

@@ -131,7 +131,10 @@ type HTTPConfig struct {
 	// port defines the grpc server port
 	GrpcPort string `mapstructure:"grpc-port" env:"HTTP_GRPC_PORT" envDefault:"9091"`
 	// ipWhiteList defines the ip white list, Only those in the whitelist can be called
-	IPWhiteList string `mapstructure:"ip-white-list" env:"HTTP_IP_WHITE_LIST"`
+	IPWhiteList     string `mapstructure:"ip-white-list" env:"HTTP_IP_WHITE_LIST"`
+	B2Rpc           string `mapstructure:"b2-rpc" env:"HTTP_B2_RPC"`
+	ContractAddress string `mapstructure:"contract-address" env:"HTTP_CONTRACT_ADDRESS"`
+	WithdrawEvent   string `mapstructure:"withdraw-event" env:"HTTP_WITHDRAW_EVENT"`
 	// enableMpcCallback enable mpc callback api
 	EnableMPCCallback bool      `mapstructure:"enable-mpc-callback" env:"ENABLE_MPC_CALLBACK"  envDefault:"false"`
 	Mpc               MpcConfig `mapstructure:"mpc"`
