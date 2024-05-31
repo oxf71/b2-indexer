@@ -221,12 +221,12 @@ func (s *sinohopeServer) WithdrawalConfirm(ctx context.Context, req *vo.Withdraw
 				if caller != withdraw.B2TxFrom {
 					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
 				}
-				_requestId := fmt.Sprintf("%s-%d-%d", vlog.TxHash.String(), vlog.TxIndex, vlog.Index)
+				_requestID := fmt.Sprintf("%s-%d-%d", vlog.TxHash.String(), vlog.TxIndex, vlog.Index)
 				apiReqID := strings.Split(requestDetail.APIRequestID, "_")
 				if len(apiReqID) < 1 {
 					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
 				}
-				if apiReqID[0] != _requestId {
+				if apiReqID[0] != _requestID {
 					return ErrorWithdrawalConfirm(exceptions.WithdrawConfirmReject, "Invalid parameter", req.RequestId), nil
 				}
 			}
